@@ -1,0 +1,12 @@
+# python
+__pycache__/
+*.py[cod]
+*.pytest_cache/
+media/
+
+# node
+node_modules/
+dist/
+
+# env
+.env
