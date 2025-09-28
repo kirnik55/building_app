@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import api from '../api'
 import { useNavigate } from 'react-router-dom'
+import api from '../api'
+import { showError, showSuccess } from '../ui/toast'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -11,12 +12,28 @@ export default function LoginPage() {
   async function submit(e) {
     e.preventDefault()
     setError('')
+
+    const payload = {
+      email: email.trim().toLowerCase(),
+      password: password.trim(),
+    }
+
     try {
-      const { data } = await api.post('/auth/token/', { email, password })
+      const { data } = await api.post('/auth/token/', payload)
+      // сохраняем токены
       localStorage.setItem('token', data.access)
+      if (data.refresh) localStorage.setItem('refresh', data.refresh)
+
+      showSuccess('Успешный вход')
       navigate('/projects')
-    } catch {
-      setError('Неверный e-mail или пароль')
+    } catch (err) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Неверный e-mail или пароль'
+      setError(String(msg))
+      showError(String(msg))
+      console.error('Login error:', err?.response || err)
     }
   }
 
@@ -30,15 +47,31 @@ export default function LoginPage() {
             <form onSubmit={submit}>
               <div className="mb-3">
                 <label className="form-label">Email</label>
-                <input className="form-control" type="email" value={email}
-                  onChange={e=>setEmail(e.target.value)} required />
+                <input
+                  className="form-control"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                  required
+                />
               </div>
+
               <div className="mb-3">
                 <label className="form-label">Пароль</label>
-                <input className="form-control" type="password" value={password}
-                  onChange={e=>setPassword(e.target.value)} required />
+                <input
+                  className="form-control"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
               </div>
-              <button className="btn btn-primary w-100" type="submit">Войти</button>
+
+              <button className="btn btn-primary w-100" type="submit">
+                Войти
+              </button>
             </form>
           </div>
         </div>
