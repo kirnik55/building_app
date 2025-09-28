@@ -1,35 +1,43 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom'
+import LoginPage from './pages/LoginPage.jsx'
+import ProjectsPage from './pages/ProjectsPage.jsx'
+import DefectsPage from './pages/DefectsPage.jsx'
 
-function App() {
-  const [count, setCount] = useState(0)
+function Protected({ children }) {
+  const token = localStorage.getItem('token')
+  return token ? children : <Navigate to="/login" replace />
+}
 
+function Navbar() {
+  const navigate = useNavigate()
+  const logout = () => { localStorage.removeItem('token'); navigate('/login') }
+  const hasToken = !!localStorage.getItem('token')
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <nav className="navbar navbar-expand bg-light px-3 mb-3">
+      <Link className="navbar-brand" to="/projects">Defects</Link>
+      <div className="ms-auto">
+        {hasToken ? (
+          <button className="btn btn-outline-secondary btn-sm" onClick={logout}>Выйти</button>
+        ) : (
+          <Link className="btn btn-primary btn-sm" to="/login">Войти</Link>
+        )}
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </nav>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <>
+      <Navbar />
+      <div className="container">
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/projects" element={<Protected><ProjectsPage /></Protected>} />
+          <Route path="/defects" element={<Protected><DefectsPage /></Protected>} />
+          <Route path="*" element={<Navigate to="/projects" replace />} />
+        </Routes>
+      </div>
+    </>
+  )
+}

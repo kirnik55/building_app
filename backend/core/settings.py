@@ -40,9 +40,10 @@ INSTALLED_APPS = [
 # Кастомный пользователь
 AUTH_USER_MODEL = "accounts.User"
 
-# --- MIDDLEWARE ---
+from corsheaders.defaults import default_headers
+
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # CORS должен быть первым
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -54,7 +55,15 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
 ]
+CORS_ALLOW_HEADERS = list(default_headers) + ["authorization", "content-type"]
+
+
 
 
 # --- URL/WSGI ---
@@ -98,9 +107,12 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- CORS/CSRF для фронтенда ---
-CORS_ALLOWED_ORIGINS = [
-    os.getenv("CORS_ORIGIN", "http://localhost:5173"),
+# Разрешить любой порт на localhost/127.0.0.1 (удобно для Vite)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
 ]
+
 # Если нужно принимать куки с фронта — можно добавить:
 # CSRF_TRUSTED_ORIGINS = [os.getenv("CORS_ORIGIN", "http://localhost:5173")]
 
