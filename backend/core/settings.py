@@ -52,6 +52,11 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+
+
 # --- URL/WSGI ---
 ROOT_URLCONF = "core.urls"
 
