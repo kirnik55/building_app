@@ -5,23 +5,30 @@ from django.views.generic import RedirectView
 from django.http import JsonResponse
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+
 def health(_request):
+    """Простейший health-check: /api/health"""
     return JsonResponse({"status": "ok"})
 
+
 urlpatterns = [
-    # 👉 вот этот редирект чинит 404 на корне
+    # Редирект с корня на API, чтобы не видеть 404 на /
     path("", RedirectView.as_view(url="/api/", permanent=False)),
 
+    # Админка
     path("admin/", admin.site.urls),
+
+    # Health
     path("api/health", health),
 
-    # JWT
+    # JWT (логин/обновление токена)
     path("api/auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
-    # ваши API
+    # Аккаунты (обязательно, чтобы работали /api/auth/me/ и /api/auth/users/)
+    path("api/auth/", include("accounts.urls")),
+
+    # Остальные приложения
     path("api/", include("projects.urls")),
     path("api/", include("defects.urls")),
-    # если у вас есть accounts/urls с /api/auth/me/ — оставьте:
-    # path("api/auth/", include("accounts.urls")),
 ]

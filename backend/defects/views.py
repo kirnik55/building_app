@@ -1,7 +1,9 @@
+# backend/defects/views.py
 from datetime import datetime
+import logging
 
 from django.db.models import Count
-from rest_framework import viewsets, mixins
+from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
@@ -12,14 +14,23 @@ from .models import Defect, Comment, Attachment, Status
 from .serializers import DefectSerializer, CommentSerializer, AttachmentSerializer
 from .permissions import DefectPermission
 
+# для проверки ролей при назначении
+from accounts.models import User, Roles
+
+logger = logging.getLogger(__name__)
+
 
 class DefectViewSet(viewsets.ModelViewSet):
     """
-    CRUD по дефектам + /defects/resolved/
+    CRUD по дефектам + /defects/resolved/ + /defects/<id>/assign/
     """
-    queryset = Defect.objects.select_related("project", "assignee", "created_by")
+    queryset = (
+        Defect.objects
+        .select_related("project", "assignee", "created_by")
+    )
     serializer_class = DefectSerializer
-    permission_classes = [DefectPermission]
+    # Требуем авторизацию и наши объектные права
+    permission_classes = [IsAuthenticated, DefectPermission]
     filterset_fields = ["project", "priority", "status", "assignee"]
     search_fields = ["title", "description"]
     ordering_fields = ["created_at", "priority", "due_date"]
@@ -35,6 +46,45 @@ class DefectViewSet(viewsets.ModelViewSet):
             else Response(ser.data)
         )
 
+    @action(detail=True, methods=["patch"], url_path="assign")
+    def assign(self, request, pk=None):
+        """
+        PATCH /api/defects/<id>/assign/
+        Тело: {"assignee": "<uuid инженера>"}  (или null/"" чтобы снять назначение)
+
+        Доступ: менеджер / руководитель (lead) / админ.
+        """
+        defect = self.get_object()
+
+        # простая проверка роли
+        role = getattr(request.user, "role", None)
+        if role not in {Roles.MANAGER, Roles.LEAD, Roles.ADMIN}:
+            return Response({"detail": "Недостаточно прав."}, status=status.HTTP_403_FORBIDDEN)
+
+        assignee_id = request.data.get("assignee")
+
+        if not assignee_id:
+            # снимаем назначение
+            prev = defect.assignee_id
+            defect.assignee = None
+            defect.save(update_fields=["assignee"])
+            logger.info("User %s unassigned engineer from defect %s (prev=%s)",
+                        request.user.id, defect.id, prev)
+            return Response(DefectSerializer(defect, context={"request": request}).data)
+
+        try:
+            engineer = User.objects.get(pk=assignee_id, role=Roles.ENGINEER)
+        except User.DoesNotExist:
+            return Response({"detail": "Инженер не найден."}, status=status.HTTP_400_BAD_REQUEST)
+
+        defect.assignee = engineer
+        defect.save(update_fields=["assignee"])
+
+        logger.info("User %s assigned engineer %s to defect %s",
+                    request.user.id, engineer.id, defect.id)
+
+        return Response(DefectSerializer(defect, context={"request": request}).data)
+
 
 class CommentViewSet(mixins.CreateModelMixin,
                      mixins.ListModelMixin,
@@ -42,8 +92,13 @@ class CommentViewSet(mixins.CreateModelMixin,
     """
     Комментарии к дефектам
     """
-    queryset = Comment.objects.select_related("defect", "author").order_by("-created_at")
+    queryset = (
+        Comment.objects
+        .select_related("defect", "author")
+        .order_by("-created_at")
+    )
     serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -56,9 +111,14 @@ class AttachmentViewSet(mixins.CreateModelMixin,
     """
     Файлы/фото к дефектам
     """
-    queryset = Attachment.objects.select_related("defect").order_by("-uploaded_at")
+    queryset = (
+        Attachment.objects
+        .select_related("defect")
+        .order_by("-uploaded_at")
+    )
     serializer_class = AttachmentSerializer
     parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         # uploaded_at ставится автоматически в модели
