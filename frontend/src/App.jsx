@@ -6,74 +6,67 @@ import ProjectsPage from "./pages/ProjectsPage.jsx";
 import DefectsPage from "./pages/DefectsPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
 import EngineersPage from "./pages/EngineersPage.jsx";
+import { useAuth } from "./auth/AuthContext";
 
-import { useAuth } from "./context/AuthContext.jsx";
+function RoleBadge({ role }) {
+  const map = {
+    engineer: { text: "engineer", cls: "secondary" },
+    manager:  { text: "manager",  cls: "primary"   },
+    lead:     { text: "lead",     cls: "warning"   },
+    admin:    { text: "admin",    cls: "danger"    },
+  };
+  const v = map[role] ?? { text: role, cls: "light" };
+  return <span className={`badge text-uppercase bg-${v.cls}`}>{v.text}</span>;
+}
 
 function Navbar() {
   const navigate = useNavigate();
-  const { me } = useAuth(); // { id, email, role, ... } или null
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("refresh");
-    navigate("/login");
-    // Перезагрузим UI, чтобы контекст очистился
-    window.location.reload();
-  };
-
-  const isAuthed = !!me;
-  const canManage = me && ["manager", "lead", "admin"].includes(me.role);
+  const { isAuth, user, role, canManage, logout } = useAuth();
 
   return (
     <nav className="navbar navbar-expand bg-light px-3 mb-3 border-bottom">
       <span className="navbar-brand fw-semibold">Defects</span>
 
-      {isAuthed && (
+      {isAuth && (
         <>
           <ul className="navbar-nav">
+            {/* всем авторизованным: Дефекты */}
             <li className="nav-item">
-              <NavLink to="/defects" className="nav-link">
-                Дефекты
-              </NavLink>
+              <NavLink to="/defects" className="nav-link">Дефекты</NavLink>
             </li>
 
-            {/* Проекты и отчёты только для manager/lead/admin */}
+            {/* только менеджмент */}
             {canManage && (
               <>
                 <li className="nav-item">
-                  <NavLink to="/projects" className="nav-link">
-                    Проекты
-                  </NavLink>
+                  <NavLink to="/projects" className="nav-link">Проекты</NavLink>
                 </li>
                 <li className="nav-item">
-                  <NavLink to="/reports" className="nav-link">
-                    Отчёты
-                  </NavLink>
+                  <NavLink to="/reports" className="nav-link">Отчёты</NavLink>
                 </li>
                 <li className="nav-item">
-                  <NavLink to="/engineers" className="nav-link">
-                    Инженеры
-                  </NavLink>
+                  <NavLink to="/engineers" className="nav-link">Инженеры</NavLink>
                 </li>
               </>
             )}
           </ul>
 
           <div className="ms-auto d-flex align-items-center gap-2">
-            {/* бейдж роли */}
-            <span className="badge text-bg-secondary text-uppercase">{me.role}</span>
-            <button className="btn btn-outline-secondary btn-sm" onClick={logout}>
+            <RoleBadge role={role} />
+            <span className="text-muted small">{user?.email || user?.name}</span>
+            <button
+              className="btn btn-outline-secondary btn-sm"
+              onClick={() => { logout(); navigate("/login"); }}
+            >
               Выйти
             </button>
           </div>
         </>
       )}
 
-      {!isAuthed && (
+      {!isAuth && (
         <div className="ms-auto">
-          <NavLink to="/login" className="btn btn-primary btn-sm">
-            Войти
-          </NavLink>
+          <NavLink to="/login" className="btn btn-primary btn-sm">Войти</NavLink>
         </div>
       )}
     </nav>
@@ -89,19 +82,7 @@ export default function App() {
           {/* Публично */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Публичный маршрут Инженеры (по вашей просьбе). 
-              В меню ссылка видна только manager/lead/admin. */}
-          <Route path="/engineers" element={<EngineersPage />} />
-
-          {/* Приватные */}
-          <Route
-            path="/projects"
-            element={
-              <ProtectedRoute>
-                <ProjectsPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Приватно */}
           <Route
             path="/defects"
             element={
@@ -110,6 +91,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/projects"
+            element={
+              <ProtectedRoute>
+                <ProjectsPage />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/reports"
             element={
@@ -119,7 +110,16 @@ export default function App() {
             }
           />
 
-          {/* Редирект по-умолчанию */}
+          <Route
+            path="/engineers"
+            element={
+              <ProtectedRoute>
+                <EngineersPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* default */}
           <Route path="*" element={<Navigate to="/defects" replace />} />
         </Routes>
       </div>

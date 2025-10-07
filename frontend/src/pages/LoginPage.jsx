@@ -1,39 +1,29 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../api'
-import { showError, showSuccess } from '../ui/toast'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const navigate = useNavigate()
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError]       = useState("");
+
+  const { login, role } = useAuth();
+  const navigate = useNavigate();
 
   async function submit(e) {
-    e.preventDefault()
-    setError('')
-
-    const payload = {
-      email: email.trim().toLowerCase(),
-      password: password.trim(),
-    }
-
+    e.preventDefault();
+    setError("");
     try {
-      const { data } = await api.post('/auth/token/', payload)
-      // сохраняем токены
-      localStorage.setItem('token', data.access)
-      if (data.refresh) localStorage.setItem('refresh', data.refresh)
-
-      showSuccess('Успешный вход')
-      navigate('/projects')
+      await login(email.trim().toLowerCase(), password.trim());
+      // редирект по роли
+      if (["manager","lead","admin"].includes(role)) {
+        navigate("/projects", { replace: true });
+      } else {
+        navigate("/defects", { replace: true });
+      }
     } catch (err) {
-      const msg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        'Неверный e-mail или пароль'
-      setError(String(msg))
-      showError(String(msg))
-      console.error('Login error:', err?.response || err)
+      setError("Неверный e-mail или пароль");
+      console.error(err);
     }
   }
 
@@ -47,35 +37,21 @@ export default function LoginPage() {
             <form onSubmit={submit}>
               <div className="mb-3">
                 <label className="form-label">Email</label>
-                <input
-                  className="form-control"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="username"
-                  required
-                />
+                <input className="form-control" type="email"
+                       value={email} onChange={e=>setEmail(e.target.value)}
+                       autoComplete="username" required />
               </div>
-
               <div className="mb-3">
                 <label className="form-label">Пароль</label>
-                <input
-                  className="form-control"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
+                <input className="form-control" type="password"
+                       value={password} onChange={e=>setPassword(e.target.value)}
+                       autoComplete="current-password" required />
               </div>
-
-              <button className="btn btn-primary w-100" type="submit">
-                Войти
-              </button>
+              <button className="btn btn-primary w-100" type="submit">Войти</button>
             </form>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
