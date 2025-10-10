@@ -10,12 +10,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.models import User, Roles  # роли и User
+
 from .models import Defect, Comment, Attachment, Status
 from .serializers import DefectSerializer, CommentSerializer, AttachmentSerializer
 from .permissions import DefectPermission
-
-# для проверки ролей при назначении
-from accounts.models import User, Roles
 
 logger = logging.getLogger(__name__)
 
@@ -23,17 +22,30 @@ logger = logging.getLogger(__name__)
 class DefectViewSet(viewsets.ModelViewSet):
     """
     CRUD по дефектам + /defects/resolved/ + /defects/<id>/assign/
+
+    Инженер видит только дефекты, назначенные на него.
+    Менеджер/Лид/Админ видят все.
     """
     queryset = (
         Defect.objects
         .select_related("project", "assignee", "created_by")
     )
     serializer_class = DefectSerializer
-    # Требуем авторизацию и наши объектные права
     permission_classes = [IsAuthenticated, DefectPermission]
     filterset_fields = ["project", "priority", "status", "assignee"]
     search_fields = ["title", "description"]
     ordering_fields = ["created_at", "priority", "due_date"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = getattr(self.request, "user", None)
+        if not user or not user.is_authenticated:
+            return qs.none()
+
+        # Инженеру — только свои дефекты
+        if getattr(user, "role", None) == Roles.ENGINEER and not user.is_staff and not user.is_superuser:
+            return qs.filter(assignee=user)
+        return qs
 
     @action(detail=False, methods=["get"])
     def resolved(self, request):
@@ -56,7 +68,6 @@ class DefectViewSet(viewsets.ModelViewSet):
         """
         defect = self.get_object()
 
-        # простая проверка роли
         role = getattr(request.user, "role", None)
         if role not in {Roles.MANAGER, Roles.LEAD, Roles.ADMIN}:
             return Response({"detail": "Недостаточно прав."}, status=status.HTTP_403_FORBIDDEN)
@@ -64,7 +75,6 @@ class DefectViewSet(viewsets.ModelViewSet):
         assignee_id = request.data.get("assignee")
 
         if not assignee_id:
-            # снимаем назначение
             prev = defect.assignee_id
             defect.assignee = None
             defect.save(update_fields=["assignee"])
@@ -101,6 +111,7 @@ class CommentViewSet(mixins.CreateModelMixin,
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
+        # автором делаем текущего пользователя
         serializer.save(author=self.request.user)
 
 
